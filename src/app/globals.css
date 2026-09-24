@@ -1,0 +1,167 @@
+@import "tailwindcss";
+
+:root {
+  --mouse-x: 50%;
+  --mouse-y: 50%;
+  --xp-bg: #05060b;
+  --xp-fg: #f7f7fa;
+  --xp-muted: #a6a9b5;
+}
+
+html {
+  background: var(--xp-bg);
+  color: var(--xp-fg);
+}
+
+body {
+  min-height: 100vh;
+  background: var(--xp-bg);
+  overflow-x: hidden;
+}
+
+.hero-copy {
+  max-width: min(620px, 100%);
+}
+
+.hero-title {
+  font-size: 34px;
+}
+
+.hero-veil {
+  background: linear-gradient(
+    90deg,
+    #05060b 0%,
+    rgba(5, 6, 11, 0.96) 36%,
+    rgba(5, 6, 11, 0.2) 64%,
+    rgba(5, 6, 11, 0.12) 100%
+  );
+}
+
+@media (max-width: 639px) {
+  .hero-veil {
+    background: linear-gradient(
+      180deg,
+      #05060b 0%,
+      #05060b 46%,
+      rgba(5, 6, 11, 0.28) 72%,
+      rgba(5, 6, 11, 0.5) 100%
+    );
+  }
+}
+
+@media (max-width: 639px) {
+  .hero-title {
+    font-size: 34px;
+  }
+
+  .hero-copy p {
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (min-width: 640px) {
+  .hero-title {
+    font-size: 52px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .hero-title {
+    font-size: 68px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .hero-title {
+    font-size: 76px;
+  }
+}
+
+::selection {
+  background: rgba(91, 140, 255, 0.28);
+  color: #fff;
+}
+
+@keyframes status-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(2.1);
+    opacity: 0;
+  }
+}
+
+@keyframes shine-sweep {
+  0%,
+  78% {
+    transform: translateX(-130%);
+  }
+  100% {
+    transform: translateX(280%);
+  }
+}
+
+@keyframes coin-spin {
+  from {
+    transform: rotateY(0deg);
+  }
+  to {
+    transform: rotateY(360deg);
+  }
+}
+
+@keyframes orbit-comet {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -100;
+  }
+}
+
+@keyframes orbit-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes dapp-card-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
+}
+
+.dapp-card-float {
+  animation: dapp-card-float 5.6s ease-in-out infinite;
+}
+
+@theme inline {
+  --animate-status-pulse: status-pulse 2.4s ease-in-out infinite;
+  --animate-shine: shine-sweep 6.4s ease-in-out infinite;
+  --animate-shine-delayed: shine-sweep 7.1s ease-in-out infinite 1.2s;
+  --animate-coin-spin: coin-spin 11s linear infinite;
+  --animate-orbit-spin: orbit-spin 10s linear infinite;
+  --animate-orbit-comet: orbit-comet 12s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-safe\:animate-status-pulse,
+  .motion-safe\:animate-shine,
+  .motion-safe\:animate-shine-delayed,
+  .motion-safe\:animate-coin-spin,
+  .motion-safe\:animate-orbit-spin,
+  .motion-safe\:animate-orbit-comet,
+  .dapp-card-float {
+    animation: none !important;
+  }
+}
