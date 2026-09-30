@@ -6,20 +6,36 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "next lint",
+    "test": "tsx --test tests/*.test.ts",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@solana/wallet-adapter-backpack": "^0.1.14",
+    "@solana/wallet-adapter-base": "^0.9.28",
+    "@solana/wallet-adapter-coinbase": "^0.1.24",
+    "@solana/wallet-adapter-phantom": "^0.9.30",
+    "@solana/wallet-adapter-react": "^0.15.40",
+    "@solana/wallet-adapter-react-ui": "^0.9.40",
+    "@solana/wallet-adapter-solflare": "^0.6.34",
+    "@solana/web3.js": "^1.99.0",
     "framer-motion": "^12.23.12",
     "next": "^15.5.3",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.2.0",
+    "@playwright/test": "^1.55.0",
     "@tailwindcss/postcss": "^4.1.13",
     "@types/node": "^22.18.1",
     "@types/react": "^19.1.13",
     "@types/react-dom": "^19.1.9",
+    "eslint": "^9.15.0",
+    "eslint-config-next": "^15.5.3",
     "tailwindcss": "^4.1.13",
+    "tsx": "^4.23.15",
     "typescript": "^5.9.2"
   }
 }

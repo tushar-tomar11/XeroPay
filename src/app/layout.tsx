@@ -1,5 +1,6 @@
 import { SiteShell } from "@/components/layout/SiteShell";
 import { CursorGlow } from "@/components/effects/CursorGlow";
+import { SolanaProvider } from "@/components/providers/SolanaProvider";
 import type { Metadata, Viewport } from "next";
 import { Caveat, Inter } from "next/font/google";
 import "./globals.css";
@@ -32,8 +33,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${inter.variable} ${caveat.variable}`}>
       <body className={`${inter.className} antialiased`}>
-        <CursorGlow />
-        <SiteShell>{children}</SiteShell>
+        <SolanaProvider>
+          <CursorGlow />
+          <SiteShell>{children}</SiteShell>
+        </SolanaProvider>
       </body>
     </html>
   );

@@ -1,6 +1,5 @@
 "use client";
 
-import { FloatingObject } from "@/components/effects/FloatingObject";
 import { FloatingOrb, ProblemParticles } from "@/components/xeropay/problem/Atmosphere";
 import { OrbitSystem } from "@/components/xeropay/problem/OrbitSystem";
 import { ProblemContent } from "@/components/xeropay/problem/ProblemContent";

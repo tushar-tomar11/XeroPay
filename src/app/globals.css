@@ -154,6 +154,99 @@ body {
   --animate-orbit-comet: orbit-comet 12s linear infinite;
 }
 
+/* =========================================
+   XeroPay — Solana Wallet Adapter Overrides
+   ========================================= */
+
+.wallet-adapter-modal {
+  background: rgba(0, 0, 0, 0.75) !important;
+  backdrop-filter: blur(6px) !important;
+  z-index: 10000 !important;
+}
+
+.wallet-adapter-modal-overlay {
+  background: rgba(0, 0, 0, 0.75) !important;
+}
+
+.wallet-adapter-modal-wrapper {
+  background: #0b0e1a !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 24px !important;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6) !important;
+  max-width: 400px !important;
+}
+
+.wallet-adapter-modal-title {
+  color: #f7f7fa !important;
+  font-family: inherit !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+}
+
+.wallet-adapter-modal-list li {
+  border-radius: 14px !important;
+}
+
+.wallet-adapter-modal-list li:hover .wallet-adapter-button {
+  background: #15151f !important;
+}
+
+.wallet-adapter-button {
+  background: transparent !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 14px !important;
+  color: #f7f7fa !important;
+  font-family: inherit !important;
+  font-size: 13px !important;
+  transition: background 0.15s, border-color 0.15s !important;
+}
+
+.wallet-adapter-button:hover:not([disabled]) {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: #7b9cff !important;
+}
+
+.wallet-adapter-modal-button-close {
+  background: #15151f !important;
+}
+
+.wallet-adapter-modal-button-close:hover {
+  background: #1f1f2e !important;
+}
+
+.wallet-adapter-modal-list-more {
+  color: #6e7280 !important;
+  font-size: 12px !important;
+}
+
+.wallet-adapter-collapse {
+  color: #7b9cff !important;
+}
+
+.dapp-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(155, 166, 255, 0.35) transparent;
+}
+
+.dapp-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.dapp-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dapp-scroll::-webkit-scrollbar-thumb {
+  background: rgba(155, 166, 255, 0.35);
+  border-radius: 999px;
+}
+
+.dapp-scroll::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .motion-safe\:animate-status-pulse,
   .motion-safe\:animate-shine,

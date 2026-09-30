@@ -3,100 +3,207 @@
 import { Button } from "@/components/common/Button";
 import { DappScreen, Field, Panel, inputClass } from "@/components/dapp/DappScreen";
 import { EmptyState } from "@/components/dapp/EmptyState";
+import { LoadingSkeleton } from "@/components/dapp/ErrorState";
+import { DataTable, StatCard } from "@/components/dapp/ui/primitives";
 import { newId, useDappSession } from "@/components/dapp/session/DappSession";
+import { formatDateTime, formatTokenAmount, formatUsd } from "@/lib/format";
+import { fetchMarketRows, type MarketRow } from "@/lib/preview/markets";
+import { shieldedUsdcPreview, VAULT_NAMES, addToVault, takeFromVault } from "@/lib/preview/vault";
+import type { VaultName } from "@/lib/preview/types";
+import { formatSol } from "@/lib/wallet/balances";
+import { USDC_MINT_MAINNET } from "@/lib/wallet/cluster";
+import {
+  fetchRecentActivity,
+  fetchSplHoldings,
+  solscanTx,
+  type ChainActivity,
+} from "@/lib/wallet/onchain";
+import { fetchUsdPrices } from "@/lib/wallet/prices";
+import { useCluster } from "@/components/providers/ClusterProvider";
+import { useConnection } from "@solana/wallet-adapter-react";
+import { PublicKey } from "@solana/web3.js";
 import Link from "next/link";
-import { useState } from "react";
-
-const VAULTS = ["Spend", "Save", "Invest"] as const;
+import { useEffect, useMemo, useState } from "react";
 
 export function VaultScreen() {
-  const { requestSign, addHistory } = useDappSession();
+  const { requestSign, addHistory, store, patchStore, usdcBalance, balancesReady } = useDappSession();
   const [amount, setAmount] = useState("");
   const [side, setSide] = useState<"shield" | "unshield">("shield");
+  const [bucket, setBucket] = useState<VaultName>("Spend");
 
   return (
-    <DappScreen
-      title="Vault"
-      lede="Labelled buckets of notes. Screening happens at the edge. This preview does not move funds."
-    >
+    <DappScreen title="Vault" lede="Preview shielded USDC buckets. Nothing moves on-chain in this build.">
       <div className="grid gap-3 sm:grid-cols-3">
-        {VAULTS.map((name) => (
+        {VAULT_NAMES.map((name) => (
           <Panel key={name}>
             <p className="text-[11px] tracking-[0.14em] text-[#9AA6FF] uppercase">{name}</p>
-            <p className="mt-2 text-[28px] font-semibold">0.00</p>
-            <p className="text-[12px] text-[#6E7280]">USDC notes · empty</p>
+            <p className="mt-2 text-[28px] font-semibold">
+              {(store.vault[name] ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </p>
+            <p className="text-[12px] text-[#6E7280]">USDC notes · preview</p>
           </Panel>
         ))}
       </div>
       <Panel>
         <div className="mb-4 flex gap-2">
-          <Button
-            variant={side === "shield" ? "primary" : "secondary"}
-            className="px-4 py-2 text-[13px]"
-            onClick={() => setSide("shield")}
-          >
+          <Button variant={side === "shield" ? "primary" : "secondary"} className="px-4 py-2 text-[13px]" onClick={() => setSide("shield")}>
             Shield
           </Button>
-          <Button
-            variant={side === "unshield" ? "primary" : "secondary"}
-            className="px-4 py-2 text-[13px]"
-            onClick={() => setSide("unshield")}
-          >
+          <Button variant={side === "unshield" ? "primary" : "secondary"} className="px-4 py-2 text-[13px]" onClick={() => setSide("unshield")}>
             Unshield
           </Button>
         </div>
-        <p className="mb-4 text-[13px] leading-relaxed text-[#A6A9B5]">
-          {side === "shield"
-            ? "Entry is specified after screening. Sanctioned sources are refused before anything is shielded."
-            : "Exit is identity-separated from the notes. The happy path is not unshield-to-spend for every purchase."}
-        </p>
+        <Field label="Vault bucket">
+          <select className={inputClass} value={bucket} onChange={(e) => setBucket(e.target.value as VaultName)}>
+            {VAULT_NAMES.map((v) => (
+              <option key={v}>{v}</option>
+            ))}
+          </select>
+        </Field>
         <Field label="Amount USDC">
           <input className={inputClass} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" />
         </Field>
         <Button
           className="mt-4 px-5 py-2.5 text-[14px]"
           onClick={() => {
-            if (!amount) return;
-            requestSign(`${side === "shield" ? "Shield" : "Unshield"} ${amount} USDC`, () => {
-              addHistory(side, `${side === "shield" ? "Shield" : "Unshield"} ${amount} USDC (preview)`);
+            const n = Number(amount);
+            if (!Number.isFinite(n) || n <= 0) return;
+            if (side === "shield" && (!balancesReady || (usdcBalance ?? 0) < n)) return;
+            requestSign(`${side === "shield" ? "Shield" : "Unshield"} ${n} USDC`, () => {
+              patchStore((s) => {
+                if (side === "shield") return addToVault(s, bucket, n);
+                const next = takeFromVault(s, bucket, n);
+                return next ?? s;
+              });
+              addHistory(side, `${side === "shield" ? "Shield" : "Unshield"} ${n} USDC → ${bucket} (preview)`);
               setAmount("");
             });
           }}
         >
           Sign preview
         </Button>
+        <p className="mt-3 text-[12px] text-[#6E7280]">
+          Total shielded preview: {shieldedUsdcPreview(store).toFixed(2)} USDC
+        </p>
       </Panel>
     </DappScreen>
   );
 }
 
 export function PortfolioScreen() {
+  const { address, solBalance, usdcBalance, balancesReady, store } = useDappSession();
+  const { connection } = useConnection();
+  const [spl, setSpl] = useState<Awaited<ReturnType<typeof fetchSplHoldings>>>([]);
+  const [loading, setLoading] = useState(false);
+  const [prices, setPrices] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    if (!address) return;
+    let cancelled = false;
+    setLoading(true);
+    void fetchSplHoldings(connection, new PublicKey(address))
+      .then(async (rows) => {
+        if (cancelled) return;
+        setSpl(rows);
+        const ids = ["SOL", ...rows.map((r) => r.mint)];
+        setPrices(await fetchUsdPrices(ids));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [address, connection]);
+
+  const rows = useMemo(() => {
+    const list: { symbol: string; amount: number; usd: number | null }[] = [];
+    if (balancesReady && solBalance !== null) {
+      list.push({ symbol: "SOL", amount: solBalance, usd: prices.SOL ? solBalance * prices.SOL : null });
+    }
+    if (balancesReady && usdcBalance !== null) {
+      const p = prices[USDC_MINT_MAINNET.toBase58()] ?? prices.SOL;
+      list.push({ symbol: "USDC", amount: usdcBalance, usd: p ? usdcBalance * p : null });
+    }
+    for (const t of spl) {
+      const p = prices[t.mint];
+      list.push({ symbol: t.symbol, amount: t.amount, usd: p ? t.amount * p : null });
+    }
+    const preview = shieldedUsdcPreview(store);
+    if (preview > 0) list.push({ symbol: "Shielded (preview)", amount: preview, usd: null });
+    return list;
+  }, [balancesReady, solBalance, usdcBalance, spl, prices, store]);
+
+  const totalUsd = rows.reduce((sum, r) => sum + (r.usd ?? 0), 0);
+
   return (
-    <DappScreen title="Portfolio" lede="Positions stay notes. The explorer does not get a bag to scrape.">
+    <DappScreen title="Portfolio" lede="On-chain SOL/SPL from RPC. Shielded line is preview-only." badge="onchain">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <StatCard label="Total (priced assets)" value={formatUsd(totalUsd || null)} hint="Missing prices show as —" />
+        <StatCard label="Wallet SOL" value={formatSol(solBalance, balancesReady)} />
+      </div>
       <Panel>
-        <EmptyState title="No positions" body="When notes exist they decrypt here. Nothing is live on-chain in this preview." />
+        {loading ? (
+          <LoadingSkeleton className="h-24 w-full" />
+        ) : (
+          <DataTable
+            columns={["Asset", "Amount", "USD"]}
+            rows={rows.map((r) => [r.symbol, formatTokenAmount(r.amount), formatUsd(r.usd)])}
+            empty={<EmptyState title="No holdings" body="Connect a funded wallet or shield preview USDC in Vault." />}
+          />
+        )}
       </Panel>
     </DappScreen>
   );
 }
 
 export function MarketsScreen() {
-  const rows = [
-    { name: "Stablecoins", status: "Named when venues are live" },
-    { name: "Tokenized stocks", status: "Corporate actions specified; no live book" },
-    { name: "SOL", status: "Network asset — no quote in this preview" },
-  ];
+  const { store, patchStore } = useDappSession();
+  const [rows, setRows] = useState<MarketRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchMarketRows()
+      .then((r) => {
+        if (!cancelled) setRows(r);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
-    <DappScreen title="Markets" lede="Browse categories only. No live prices in this preview.">
+    <DappScreen title="Markets" lede="Live quotes when APIs respond. Illustrative — not a trading venue.">
       <Panel>
-        <ul className="divide-y divide-white/10">
-          {rows.map((r) => (
-            <li key={r.name} className="flex items-center justify-between gap-3 py-3">
-              <span className="text-[15px] text-[#F7F7FA]">{r.name}</span>
-              <span className="text-[13px] text-[#8F93A3]">{r.status}</span>
-            </li>
-          ))}
-        </ul>
+        {loading ? (
+          <LoadingSkeleton className="h-20 w-full" />
+        ) : (
+          <ul className="divide-y divide-white/10">
+            {rows.map((r) => (
+              <li key={r.id} className="flex items-center justify-between gap-3 py-3">
+                <span className="text-[15px] text-[#F7F7FA]">{r.name}</span>
+                <span className="text-[13px] text-[#C8CBD6]">{r.priceUsd ? formatUsd(r.priceUsd) : "—"}</span>
+                <Button
+                  variant="secondary"
+                  className="px-3 py-1.5 text-[12px]"
+                  onClick={() =>
+                    patchStore((s) => ({
+                      ...s,
+                      watchlist: s.watchlist.includes(r.id) ? s.watchlist.filter((x) => x !== r.id) : [...s.watchlist, r.id],
+                    }))
+                  }
+                >
+                  {store.watchlist.includes(r.id) ? "Watching" : "Watch"}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="mt-3 text-[12px] text-[#6E7280]">24h change unavailable in preview.</p>
       </Panel>
     </DappScreen>
   );
@@ -104,10 +211,14 @@ export function MarketsScreen() {
 
 export function YieldScreen() {
   const { store, patchStore } = useDappSession();
+  const [deposit, setDeposit] = useState("");
   return (
-    <DappScreen title="Yield" lede="Idle notes are designed to keep working. Rates publish with venues — none are shown here.">
+    <DappScreen title="Yield" lede="Illustrative APY only — preview simulation, not a live venue.">
       <Panel>
-        <label className="flex items-start gap-3">
+        <p className="text-[13px] text-[#A6A9B5]">Illustrative APY: 4.2% (not live)</p>
+        <StatCard label="Preview deposit" value={`${store.yieldDeposit.toFixed(2)} USDC`} />
+        <StatCard label="Earned (simulated)" value={`${store.yieldEarned.toFixed(2)} USDC`} />
+        <label className="mt-4 flex items-start gap-3">
           <input
             type="checkbox"
             checked={store.yieldSweep}
@@ -116,11 +227,27 @@ export function YieldScreen() {
           />
           <span>
             <span className="block text-[15px] font-medium text-[#F7F7FA]">Opt-in sweep</span>
-            <span className="text-[13px] text-[#A6A9B5]">
-              Policy on a vault, not a silent siphon. No APY is published until a venue is named.
-            </span>
+            <span className="text-[13px] text-[#A6A9B5]">Policy on a vault, not a silent siphon.</span>
           </span>
         </label>
+        <Field label="Simulate deposit USDC">
+          <input className={inputClass} value={deposit} onChange={(e) => setDeposit(e.target.value)} placeholder="0.00" />
+        </Field>
+        <Button
+          className="mt-3 px-5 py-2.5 text-[14px]"
+          onClick={() => {
+            const n = Number(deposit);
+            if (!Number.isFinite(n) || n <= 0) return;
+            patchStore((s) => ({
+              ...s,
+              yieldDeposit: s.yieldDeposit + n,
+              yieldEarned: s.yieldEarned + n * 0.042 * 0.083,
+            }));
+            setDeposit("");
+          }}
+        >
+          Add to simulation
+        </Button>
       </Panel>
     </DappScreen>
   );
@@ -138,7 +265,10 @@ export function GoalsScreen() {
           onSubmit={(e) => {
             e.preventDefault();
             if (!name.trim()) return;
-            patchStore((s) => ({ ...s, goals: [{ id: newId(), name: name.trim(), target }, ...s.goals] }));
+            patchStore((s) => ({
+              ...s,
+              goals: [{ id: newId(), name: name.trim(), target, contributed: "0" }, ...s.goals],
+            }));
             setName("");
             setTarget("");
           }}
@@ -156,9 +286,25 @@ export function GoalsScreen() {
         ) : (
           <ul className="space-y-2 text-[14px] text-[#C8CBD6]">
             {store.goals.map((g) => (
-              <li key={g.id}>
-                {g.name}
-                {g.target ? ` · ${g.target} USDC` : ""}
+              <li key={g.id} className="flex items-center justify-between gap-2">
+                <span>
+                  {g.name}
+                  {g.target ? ` · ${g.contributed || "0"}/${g.target} USDC` : ""}
+                </span>
+                <Button
+                  variant="secondary"
+                  className="px-3 py-1.5 text-[12px]"
+                  onClick={() =>
+                    patchStore((s) => ({
+                      ...s,
+                      goals: s.goals.map((x) =>
+                        x.id === g.id ? { ...x, contributed: String(Number(x.contributed || 0) + 10) } : x,
+                      ),
+                    }))
+                  }
+                >
+                  +10 preview
+                </Button>
               </li>
             ))}
           </ul>
@@ -180,12 +326,15 @@ export function BudgetsScreen() {
           onSubmit={(e) => {
             e.preventDefault();
             if (!limit.trim()) return;
-            patchStore((s) => ({ ...s, budgets: [{ id: newId(), vault, limit }, ...s.budgets] }));
+            patchStore((s) => ({
+              ...s,
+              budgets: [{ id: newId(), vault, limit, spent: "0" }, ...s.budgets],
+            }));
             setLimit("");
           }}
         >
           <select className={inputClass} value={vault} onChange={(e) => setVault(e.target.value)}>
-            {VAULTS.map((v) => (
+            {VAULT_NAMES.map((v) => (
               <option key={v}>{v}</option>
             ))}
           </select>
@@ -202,7 +351,7 @@ export function BudgetsScreen() {
           <ul className="space-y-2 text-[14px] text-[#C8CBD6]">
             {store.budgets.map((b) => (
               <li key={b.id}>
-                {b.vault} · {b.limit} USDC
+                {b.vault} · {b.spent}/{b.limit} USDC
               </li>
             ))}
           </ul>
@@ -214,48 +363,60 @@ export function BudgetsScreen() {
 
 export function BridgeScreen() {
   return (
-    <DappScreen title="Bridge" lede="Enter and exit at the edge. Screening stays at the boundary. No live bridge in this preview.">
+    <DappScreen
+      title="Bridge"
+      lede="There is no live bridge in this build. Move public SOL/USDC with Receive, or use Vault for preview shielding."
+    >
       <Panel>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="From">
-            <input className={inputClass} defaultValue="External Solana wallet" readOnly />
-          </Field>
-          <Field label="To">
-            <input className={inputClass} defaultValue="XEROPAY shielded notes" readOnly />
-          </Field>
-        </div>
-        <p className="mt-4 text-[13px] leading-relaxed text-[#A6A9B5]">
-          A deposit into the pool is visible as a pool deposit. It is not supposed to show whose
-          balance grew. Routes are named when the account is live.
+        <p className="text-[14px] leading-relaxed text-[#C8CBD6]">
+          This route was removed from navigation. Use Receive to share your Solana address, or Vault to try the
+          labelled preview shield flow.
         </p>
-        <Button className="mt-4 px-5 py-2.5 text-[14px]" disabled>
-          Bridge unavailable
-        </Button>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button href="/dapp/receive" className="px-5 py-2.5 text-[14px]">
+            Receive
+          </Button>
+          <Button href="/dapp/vault" variant="secondary" className="px-5 py-2.5 text-[14px]">
+            Vault
+          </Button>
+        </div>
       </Panel>
     </DappScreen>
   );
 }
 
 export function HistoryScreen() {
-  const { store } = useDappSession();
+  const { store, address } = useDappSession();
+  const { connection } = useConnection();
+  const { cluster } = useCluster();
+  const [chain, setChain] = useState<ChainActivity[]>([]);
+
+  useEffect(() => {
+    if (!address) return;
+    void fetchRecentActivity(connection, new PublicKey(address), 20).then(setChain);
+  }, [address, connection]);
+
   return (
-    <DappScreen title="History" lede="Decrypt locally. This is not a server-side statement.">
+    <DappScreen title="History" lede="On-chain signatures from RPC plus preview rows from this browser." badge="onchain">
       <Panel>
-        {store.history.length === 0 ? (
-          <EmptyState title="No local log" body="Preview signatures write rows here." />
-        ) : (
-          <ul className="divide-y divide-white/10">
-            {store.history.map((row) => (
-              <li key={row.id} className="flex justify-between gap-3 py-3 text-[14px]">
-                <span>
-                  <span className="mr-2 text-[11px] tracking-[0.12em] text-[#9AA6FF] uppercase">{row.kind}</span>
-                  {row.label}
-                </span>
-                <span className="shrink-0 text-[12px] text-[#6E7280]">{new Date(row.at).toLocaleString()}</span>
-              </li>
-            ))}
-          </ul>
-        )}
+        <DataTable
+          columns={["Type", "Detail", "Time"]}
+          rows={[
+            ...chain.map((c) => [
+              "on-chain",
+              <a key={c.signature} href={solscanTx(c.signature, cluster)} className="text-[#9AA6FF] hover:underline" target="_blank" rel="noreferrer">
+                {c.label}
+              </a>,
+              c.at ? formatDateTime(c.at) : "—",
+            ]),
+            ...store.history.map((row) => [
+              `preview · ${row.kind}`,
+              row.label,
+              formatDateTime(row.at),
+            ]),
+          ]}
+          empty={<EmptyState title="No history" body="Connect a wallet or run a preview action." />}
+        />
       </Panel>
     </DappScreen>
   );
@@ -263,8 +424,17 @@ export function HistoryScreen() {
 
 export function ReportsScreen() {
   const { store, handle } = useDappSession();
+  const previewTotal = store.history.length;
+  const sends = store.history.filter((h) => h.kind === "send").length;
+  const shielded = shieldedUsdcPreview(store);
+
   return (
     <DappScreen title="Reports" lede="Export from a viewing key you issue — scoped, dated, revocable. Generated in this browser.">
+      <div className="mb-4 grid gap-3 sm:grid-cols-3">
+        <StatCard label="Preview events" value={String(previewTotal)} hint="Local history rows" />
+        <StatCard label="Preview sends" value={String(sends)} hint="Not on-chain" />
+        <StatCard label="Shielded USDC" value={shielded.toFixed(2)} hint="Vault preview total" />
+      </div>
       <Panel>
         <p className="text-[13px] text-[#A6A9B5]">
           {store.viewingKeys.filter((k) => !k.revoked).length} active preview keys.{" "}
@@ -307,13 +477,14 @@ export function CardScreen() {
           Visa, Mastercard, and bank partners are not listed as issued. When underwriting is real,
           names will appear with the same preview honesty as the rest of this app.
         </p>
-        <Field label="Daily limit USDC">
+        <Field label="Daily limit USDC (preview default)">
           <input
             className={`${inputClass} mt-3 max-w-xs`}
             value={store.cardLimit}
             onChange={(e) => patchStore((s) => ({ ...s, cardLimit: e.target.value }))}
           />
         </Field>
+        <p className="mt-2 text-[12px] text-[#6E7280]">Preview only — not an issued card limit.</p>
         <div className="mt-4 flex flex-wrap gap-2">
           <Button
             variant={store.cardFrozen ? "primary" : "secondary"}
@@ -328,6 +499,13 @@ export function CardScreen() {
             onClick={() => patchStore((s) => ({ ...s, cardFrozen: true, cardLimit: "0" }))}
           >
             Kill switch
+          </Button>
+          <Button
+            variant="secondary"
+            className="px-5 py-2.5 text-[14px]"
+            onClick={() => patchStore((s) => ({ ...s, cardWaitlist: true }))}
+          >
+            {store.cardWaitlist ? "On waitlist" : "Request access"}
           </Button>
         </div>
       </Panel>

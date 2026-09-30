@@ -1,8 +1,7 @@
 "use client";
 
-import { Button } from "@/components/common/Button";
 import { DAppCardPreview } from "@/components/dapp/DAppCardPreview";
-import { useDappSession } from "@/components/dapp/session/DappSession";
+import { WalletButton } from "@/components/dapp/WalletButton";
 import { assets } from "@/config/assets";
 import { dappLocked } from "@/config/dapp";
 import Image from "next/image";
@@ -10,7 +9,6 @@ import Link from "next/link";
 
 export function SignInWall({ headline, body }: { headline: string; body: string }) {
   const accentWord = accentFromHeadline(headline);
-  const { openConnect } = useDappSession();
 
   return (
     <div className="relative z-[1] mx-auto flex min-h-[calc(100svh-48px)] max-w-[1280px] flex-col justify-center gap-6 px-4 py-8 lg:min-h-svh lg:px-8">
@@ -44,11 +42,11 @@ export function SignInWall({ headline, body }: { headline: string; body: string 
               )}
             </h1>
             <p className="mt-4 max-w-md text-[15px] leading-[1.7] text-[#C5C8D4]">{body}</p>
+            <p className="mt-2 max-w-md text-[13px] text-[#8F93A3]">
+              Solana only — Phantom, Solflare, Backpack, or Coinbase. MetaMask will not connect.
+            </p>
             <div className="mt-7 flex flex-wrap items-center gap-3">
-              <Button data-wallet-trigger onClick={openConnect}>
-                Connect wallet
-                <span aria-hidden="true">→</span>
-              </Button>
+              <WalletButton variant="signin" />
               <Link
                 href="/docs/how-it-works"
                 className="inline-flex items-center rounded-full border border-white/14 bg-[#0B0E1A]/70 px-5 py-3 text-[14px] font-medium text-[#F7F7FA] backdrop-blur-md hover:border-white/28"

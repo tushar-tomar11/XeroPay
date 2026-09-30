@@ -10,12 +10,13 @@ function hrefFromSlug(slug: string[]) {
 }
 
 export function generateStaticParams() {
-  return dappNav
+  const fromNav = dappNav
     .flatMap((g) => g.items)
     .filter((item) => item.href !== "/dapp")
     .map((item) => ({
       slug: item.href.replace("/dapp/", "").split("/"),
     }));
+  return [...fromNav, { slug: ["bridge"] }];
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {

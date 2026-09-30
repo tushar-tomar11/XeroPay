@@ -1,20 +1,27 @@
+"use client";
+
+import { isPreview } from "@/lib/preview/flag";
 import type { ReactNode } from "react";
+import { PreviewBadge } from "@/components/dapp/ui/primitives";
 
 export function DappScreen({
   title,
   lede,
   children,
+  badge = "preview",
 }: {
   title: string;
   lede: string;
   children: ReactNode;
+  badge?: "preview" | "onchain" | "none";
 }) {
   return (
     <div className="relative z-[1] mx-auto max-w-[1100px] px-4 py-8 lg:px-8 lg:py-10">
-      <p className="inline-flex rounded-full border border-white/12 bg-white/[0.03] px-3 py-1 text-[11px] tracking-[0.16em] text-[#9AA6FF] uppercase">
-        Preview — not on-chain
-      </p>
-      <h1 className="mt-4 text-[28px] font-semibold tracking-[-0.04em] text-[#F7F7FA] sm:text-[34px]">
+      {badge === "preview" && isPreview ? <PreviewBadge /> : null}
+      {badge === "onchain" ? <PreviewBadge label="On-chain wallet" /> : null}
+      <h1
+        className={`${badge === "none" ? "" : "mt-4 "}text-[28px] font-semibold tracking-[-0.04em] text-[#F7F7FA] sm:text-[34px]`}
+      >
         {title}
       </h1>
       <p className="mt-2 max-w-2xl text-[15px] leading-[1.7] text-[#C5C8D4]">{lede}</p>

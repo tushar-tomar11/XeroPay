@@ -56,7 +56,6 @@ export const dappNav: readonly DappGroup[] = [
       { href: "/dapp/yield", label: "Yield", icon: "yield" },
       { href: "/dapp/goals", label: "Goals", icon: "goals" },
       { href: "/dapp/budgets", label: "Budgets", icon: "budgets" },
-      { href: "/dapp/bridge", label: "Bridge", icon: "bridge" },
       { href: "/dapp/history", label: "History", icon: "history" },
       { href: "/dapp/reports", label: "Reports", icon: "reports" },
       { href: "/dapp/card", label: "Card", icon: "card" },
@@ -79,7 +78,10 @@ export const dappNav: readonly DappGroup[] = [
   },
 ] as const;
 
-export const dappPaths = new Set(dappNav.flatMap((g) => g.items.map((i) => i.href)));
+export const dappPaths = new Set([
+  ...dappNav.flatMap((g) => g.items.map((i) => i.href)),
+  "/dapp/bridge",
+]);
 
 export const dappLocked = {
   eyebrow: "Your account",
