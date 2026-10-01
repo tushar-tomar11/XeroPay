@@ -99,7 +99,6 @@ export function Footer() {
             <div className="mt-5 flex gap-2">
               <SocialIcon label="X" />
               <SocialIcon label="Telegram" />
-              <SocialIcon label="GitHub" />
               <SocialIcon label="Email" />
             </div>
           </div>
@@ -170,11 +169,6 @@ function SocialIcon({ label }: { label: string }) {
       {label === "Telegram" ? (
         <svg viewBox="0 0 14 14" className="h-3.5 w-3.5" aria-hidden="true">
           <path fill="currentColor" d="M13 2.2 11.1 12c-.14.62-.52.77-1.05.48L7.2 10.2 5.86 11.5c-.15.15-.28.28-.57.28l.2-2.04 3.72-3.36c.16-.14-.04-.23-.25-.09L4.3 8.86 2.33 8.24c-.62-.2-.63-.62.13-.91L12.2 2.1c.52-.2.97.12.8.99Z" />
-        </svg>
-      ) : null}
-      {label === "GitHub" ? (
-        <svg viewBox="0 0 14 14" className="h-3.5 w-3.5" aria-hidden="true">
-          <path fill="currentColor" d="M7 1.2A5.8 5.8 0 0 0 5.5 12.5c.29.05.4-.13.4-.28v-1c-1.62.35-1.96-.7-1.96-.7-.26-.66-.64-.84-.64-.84-.53-.36.04-.35.04-.35.58.04.89.6.89.6.52.9 1.36.64 1.7.49.05-.38.2-.64.37-.79-1.3-.15-2.66-.65-2.66-2.9 0-.64.23-1.17.6-1.58-.06-.15-.26-.75.06-1.56 0 0 .5-.16 1.62.6a5.6 5.6 0 0 1 2.94 0c1.12-.76 1.62-.6 1.62-.6.32.81.12 1.41.06 1.56.37.41.6.94.6 1.58 0 2.26-1.37 2.75-2.67 2.9.21.18.4.54.4 1.1v1.62c0 .15.11.33.4.28A5.8 5.8 0 0 0 7 1.2Z" />
         </svg>
       ) : null}
       {label === "Email" ? (
